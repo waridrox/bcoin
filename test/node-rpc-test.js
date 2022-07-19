@@ -85,7 +85,7 @@ describe('RPC', function() {
     it('should rpc getchaintips for chain fork', async () => {
       // function to generate blocks
       const generateblocks = async (height, entry) => {
-        for (let i = 0; i <= height; i ++) {
+        for (let i = 0; i <= height; i++) {
           const block = await node.miner.mineBlock(entry);
           entry = await node.chain.add(block);
         }
@@ -160,6 +160,12 @@ describe('RPC', function() {
       assert.strictEqual(connectionsCnt, 0);
     });
 
+    it('should rpc getnettotals without peers', async () => {
+      const totals = await nclient.execute('getnettotals', []);
+      assert.strictEqual(totals.totalbytesrecv, 0);
+      assert.strictEqual(totals.totalbytessent, 0);
+    });
+
     it('should connect to a peer', async () => {
       await node.connect();
       await peer.open();
@@ -176,6 +182,45 @@ describe('RPC', function() {
     it('should rpc getconnectioncount with peers', async () => {
       const connectionsCnt = await nclient.execute('getconnectioncount', []);
       assert.strictEqual(connectionsCnt, 1);
+    });
+
+    it('should rpc getnettotals with peers', async () => {
+      const totals = await nclient.execute('getnettotals', []);
+
+      // Checking if the total bytes received in the p2p handshake equal to 259
+      // The breakdown of the command vs bytes are as follows:
+      // version: 123
+      // verack: 24
+      // sendcmpct: 33
+      // getaddr: 24
+      // addr: 55
+      // TOTAL: 259
+      assert.strictEqual(totals.totalbytesrecv, 259);
+      assert.strictEqual(totals.totalbytessent, 259);
+    });
+
+    it('should rpc setban a peer', async () => {
+      // getting initial connection count
+      let connectionsCnt = await nclient.execute('getconnectioncount', []);
+      assert.strictEqual(connectionsCnt, 1);
+
+      // getting initial banned list
+      let listbanned = await nclient.execute('listbanned', []);
+      assert.strictEqual(listbanned.length, 0);
+
+      // fetching peer info and banning it
+      const info = await nclient.execute('getpeerinfo', []);
+      const banThisPeer = info[0].addr;
+      const result = await nclient.execute('setban', [banThisPeer, 'add']);
+      assert.strictEqual(result, null);
+
+      // checking banned count after banning
+      listbanned = await nclient.execute('listbanned', []);
+      assert.strictEqual(listbanned.length, 1);
+
+      // checking connection count after banning
+      connectionsCnt = await nclient.execute('getconnectioncount', []);
+      assert.strictEqual(connectionsCnt, 0);
     });
   });
 
